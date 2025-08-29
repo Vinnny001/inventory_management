@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sermons</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { width: 50%; margin: auto; text-align: center; }
+        input, button { margin: 5px; padding: 8px; }
+        .sermon { border: 1px solid #ccc; padding: 10px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sermons</h1>
+        <div>
+            <input type="text" id="title" placeholder="Title" required>
+            <input type="text" id="preacher" placeholder="Preacher" required>
+            <input type="text" id="url" placeholder="URL" required>
+            <button onclick="addSermon()">Add Sermon</button>
+        </div>
+        <div id="sermon-list"></div>
+    </div>
+
+    <script>
+        async function fetchSermons() {
+            const response = await fetch("/sermons");
+            const sermons = await response.json();
+            const list = document.getElementById("sermon-list");
+            list.innerHTML = "";
+            sermons.forEach(sermon => {
+                const div = document.createElement("div");
+                div.className = "sermon";
+                div.innerHTML = `<strong>${sermon.title}</strong> by ${sermon.preacher} <a href="${sermon.url}" target="_blank">Listen</a>`;
+                list.appendChild(div);
+            });
+        }
+
+        async function addSermon() {
+            const title = document.getElementById("title").value;
+            const preacher = document.getElementById("preacher").value;
+            const url = document.getElementById("url").value;
+            if (!title || !preacher || !url) {
+                alert("All fields are required");
+                return;
+            }
+            const response = await fetch("/sermons", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title, preacher, url })
+            });
+            if (response.ok) {
+                fetchSermons();
+            } else {
+                alert("Error adding sermon");
+            }
+        }
+
+        fetchSermons();
+    </script>
+</body>
+</html>
+
