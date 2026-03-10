@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Update Item Quantity - JKUDSA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    h1 { margin-bottom: 20px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-save { background: #2563eb; color: #fff; }
+    .btn-cancel { background: #9ca3af; color: #fff; }
+    #actionField { display: none; }
+
+    .input-wrapper {
+  position: relative; /* ✅ anchor suggestions to this container */
+  width: 100%;
+}
+
+.suggestions {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  max-height: 150px;
+  overflow-y: auto;
+  background: #fff;
+  position: absolute;
+  top: 100%;   /* ✅ directly under input */
+  left: 0;
+  width: 100%; /* ✅ same width as input */
+  display: none;
+  z-index: 1000;
+  box-sizing: border-box; /* so padding doesn’t break width */
+}
+
+    .suggestions div {
+      padding: 8px;
+      cursor: pointer;
+    }
+    .suggestions div:hover {
+      background: #f0f0f0;
+    }
+    .no-match {
+      color: #888;
+      font-style: italic;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Update Item Quantity</h1>
+    <form id="addItemForm">
+      <!-- Item type -->
+      <label for="itemType">Item Type</label>
+      <select id="itemType" required>
+        <option value="">-- Select Type --</option>
+        <option value="holy">Holy</option>
+        <option value="preserved">Preserved</option>
+        <option value="normal">Normal</option>
+      </select>
+
+      <!-- Item name -->
+      <label for="itemName">Category/Item Name</label>
+<div class="input-wrapper">
+  <input type="text" id="itemName" placeholder="Start typing to search..." autocomplete="off" required>
+  <div id="itemSuggestions" class="suggestions"></div>
+</div>
+
+      <!-- Quantity -->
+      <label for="itemQuantity">Quantity</label>
+      <input type="number" id="itemQuantity" min="1" required>
+
+      <!-- Action -->
+      <div id="actionField">
+        <label for="action">Action</label>
+        <select id="action">
+          <option value="add">Add</option>
+          <option value="subtract">Subtract</option>
+          <option value="replace">Replace</option>
+        </select>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn-cancel" onclick="window.location.href='/api/borrow.html'">Cancel</button>
+        <button type="submit" class="btn-save">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let allItems = [];
+    let selectedItem = null;
+    const itemInput = document.getElementById("itemName");
+    const suggestionBox = document.getElementById("itemSuggestions");
+
+
+
+    let selectedIndex = -1; // track which suggestion is highlighted
+
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/me", { credentials: "include" });
+        if (!res.ok) throw new Error("Not logged in");
+        currentUser = await res.json();
+        if (currentUser.access_level !== "admin") {
+          alert("Access denied.");
+          window.location.href = "/api/borrow.html";
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        window.location.href = "/login.html";
+      }
+    }
+
+    // Show/hide action field based on quantity
+    const qtyInput = document.getElementById("itemQuantity");
+    const actionField = document.getElementById("actionField");
+    qtyInput.addEventListener("input", () => {
+      actionField.style.display = qtyInput.value ? "block" : "none";
+    });
+
+    
+    // Load items when type changes
+    document.getElementById("itemType").addEventListener("change", async () => {
+      const type = document.getElementById("itemType").value;
+      allItems = [];
+      suggestionBox.innerHTML = "";
+      suggestionBox.style.display = "none";
+      itemInput.value = "";
+      selectedItem = null;
+
+      if (!type) return;
+
+      try {
+        const res = await fetch(`/api/items-list?type=${type}`, { credentials: "include" });
+        allItems = await res.json();
+      } catch (err) {
+        console.error("Error loading items:", err);
+      }
+    });
+
+    // Filter and show suggestions as user types
+    itemInput.addEventListener("input", () => {
+      const query = itemInput.value.toLowerCase();
+      suggestionBox.innerHTML = "";
+
+      if (!query) {
+        suggestionBox.style.display = "none";
+        selectedItem = null;
+        return;
+      }
+
+      const matches = allItems.filter(item => item.name.toLowerCase().includes(query));
+
+      if (matches.length === 0) {
+        suggestionBox.innerHTML = `<div class="no-match">No item match</div>`;
+      } else {
+        matches.forEach(item => {
+          const div = document.createElement("div");
+          div.textContent = item.name;
+          div.onclick = () => {
+            itemInput.value = item.name;
+            selectedItem = item.name;
+            suggestionBox.style.display = "none";
+          };
+          suggestionBox.appendChild(div);
+        });
+      }
+
+      suggestionBox.style.display = "block";
+    });
+
+    // Prevent submitting if input does not match
+    document.getElementById("addItemForm").addEventListener("submit", async e => {
+      e.preventDefault();
+
+      if (!selectedItem || itemInput.value !== selectedItem) {
+        alert("Please select an item from the list.");
+        return;
+      }
+
+      const type = document.getElementById("itemType").value;
+      const name = selectedItem;
+      const quantity = parseInt(document.getElementById("itemQuantity").value, 10);
+      const action = document.getElementById("action").value;
+
+      try {
+        const res = await fetch("/api/update-item", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ type, name, quantity, action })
+        });
+
+        const data = await res.json();
+        alert(data.message || data.error);
+        if (data.message) window.location.href = "/api/borrow.html";
+      } catch (err) {
+        console.error("Error:", err);
+        alert("Failed to update item.");
+      }
+    });
+
+
+    // Hide suggestions when clicking outside input or suggestions
+document.addEventListener("click", (e) => {
+  if (!document.querySelector(".input-wrapper").contains(e.target)) {
+    suggestionBox.style.display = "none";
+  }
+});
+
+// Show suggestions again when input is focused (if there’s text)
+itemInput.addEventListener("focus", () => {
+  if (itemInput.value.trim() && suggestionBox.innerHTML.trim() !== "") {
+    suggestionBox.style.display = "block";
+  }
+});
+
+
+
+// Handle keyboard navigation
+itemInput.addEventListener("keydown", (e) => {
+  const suggestions = suggestionBox.querySelectorAll("div:not(.no-match)");
+
+  if (suggestionBox.style.display === "block" && suggestions.length > 0) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      selectedIndex = (selectedIndex + 1) % suggestions.length;
+      updateHighlight(suggestions);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      selectedIndex = (selectedIndex - 1 + suggestions.length) % suggestions.length;
+      updateHighlight(suggestions);
+    } else if (e.key === "Enter") {
+      if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+        e.preventDefault();
+        const chosen = suggestions[selectedIndex];
+        itemInput.value = chosen.textContent;
+        selectedItem = chosen.textContent;
+        suggestionBox.style.display = "none";
+        selectedIndex = -1;
+      }
+    }
+  }
+});
+
+function updateHighlight(suggestions) {
+  suggestions.forEach((el, i) => {
+    el.style.background = i === selectedIndex ? "#e0e7ff" : "#fff"; // highlight color
+  });
+}
+
+
+
+
+    fetchUser();
+  </script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+
+  <!-- Luckysheet CSS & JS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.14/dist/plugins/css/pluginsCss.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.14/dist/plugins/plugins.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.14/dist/css/luckysheet.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.14/dist/assets/iconfont/iconfont.css" />
+<script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.14/dist/plugins/js/plugin.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.14/dist/luckysheet.umd.js"></script>
+
+
+
+
+  <title>Update Item Quantity - JKUDSA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    h1 { margin-bottom: 20px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-save { background: #2563eb; color: #fff; }
+    .btn-cancel { background: #9ca3af; color: #fff; }
+    #actionField { display: none; }
+
+    .input-wrapper {
+  position: relative; /* ✅ anchor suggestions to this container */
+  width: 100%;
+}
+
+.suggestions {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  max-height: 150px;
+  overflow-y: auto;
+  background: #fff;
+  position: absolute;
+  top: 100%;   /* ✅ directly under input */
+  left: 0;
+  width: 100%; /* ✅ same width as input */
+  display: none;
+  z-index: 1000;
+  box-sizing: border-box; /* so padding doesn’t break width */
+}
+
+    .suggestions div {
+      padding: 8px;
+      cursor: pointer;
+    }
+    .suggestions div:hover {
+      background: #f0f0f0;
+    }
+    .no-match {
+      color: #888;
+      font-style: italic;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Update Item Quantities (Luckysheet)</h1>
+
+    <div style="margin-bottom: 10px;">
+      <label>Select Item Type:</label>
+      <select id="itemType" required>
+        <option value="">-- Select Type --</option>
+        <option value="holy">Holy</option>
+        <option value="preserved">Preserved</option>
+        <option value="items">General</option>
+      </select>
+      <button id="loadSheet" class="btn-save">Load Items</button>
+      <button id="saveSheet" class="btn-save" style="background:#10b981;">Save Changes</button>
+      <button class="btn-cancel" onclick="window.location.href='/api/inventory.html'">Cancel</button>
+    </div>
+
+    <div id="luckysheet" style="margin:0 auto;width:100%;height:80vh;"></div>
+  </div>
+
+
+  <script>
+let currentType = "";
+let sheetData = [];
+
+// Load items from API and show in Luckysheet
+document.getElementById("loadSheet").addEventListener("click", async () => {
+  currentType = document.getElementById("itemType").value;
+  if (!currentType) return alert("Please select a type first.");
+
+  const res = await fetch(`/api/inventory/${currentType}`, { credentials: "include" });
+  const items = await res.json();
+
+  // Prepare Luckysheet data
+  const header = ["Item ID", "Name", "Description", "Condition", "Quantity"];
+  sheetData = [header, ...items.map(i => [
+    i.item_id,
+    i.name,
+    i.description || "",
+    i.condition || "",
+    i.quantity
+  ])];
+
+  // Destroy old sheet if exists
+  if (window.luckysheet) document.getElementById("luckysheet").innerHTML = "";
+
+  luckysheet.create({
+    container: 'luckysheet',
+    data: [{
+      name: "Items",
+      color: "#1874ec",
+      data: sheetData.map((row, rIdx) => row.map((val, cIdx) => ({
+        v: val,
+        ct: { t: "s" },
+        // Lock non-editable columns except quantity
+        lo: (rIdx === 0 || cIdx < 4) ? 1 : 0
+      })))
+    }],
+    allowEdit: true,
+    enableAddRow: false,
+    showtoolbar: true,
+    showinfobar: false,
+    sheetFormulaBar: false,
+    showsheetbar: false,
+    allowCopy: true,
+  });
+
+  alert(`Loaded ${items.length} ${currentType} items.`);
+});
+
+
+// Save updates to server
+document.getElementById("saveSheet").addEventListener("click", async () => {
+  if (!currentType) return alert("No data loaded.");
+  
+  const data = luckysheet.getSheetData();
+  const header = data[0];
+  const idIndex = header.indexOf("Item ID");
+  const qtyIndex = header.indexOf("Quantity");
+
+  const updates = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const id = row[idIndex]?.v;
+    const qty = parseInt(row[qtyIndex]?.v);
+    if (id && !isNaN(qty)) updates.push({ id, quantity: qty });
+  }
+
+  if (updates.length === 0) return alert("No valid changes found.");
+
+  try {
+    const res = await fetch(`/api/update-items-batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ type: currentType, updates })
+    });
+    const result = await res.json();
+    alert(result.message || result.error);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to save changes.");
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>All Borrowed Items - Admin</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f9fafb;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #222;
+    }
+
+    .search-box {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .search-box input {
+      width: 300px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+
+    .expandable {
+      cursor: pointer;
+      background-color: #eef5ff;
+      font-weight: 500;
+    }
+
+    .expandable:hover {
+      background-color: #dbe9ff;
+    }
+
+    .details-row {
+      display: none;
+      background-color: #fafafa;
+    }
+
+    .details-row td {
+      padding: 10px 20px;
+    }
+
+    .status {
+      font-weight: bold;
+      text-transform: capitalize;
+    }
+
+    .status.approved { color: green; }
+    .status.due { color: orange; }
+    .status.returned { color: blue; }
+
+    .loading {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 16px;
+    }
+
+    .toggle-icon {
+      margin-right: 10px;
+      transition: transform 0.2s ease;
+    }
+
+    .expanded .toggle-icon {
+      transform: rotate(90deg);
+    }
+  </style>
+</head>
+<body>
+  <h1>All Borrowed Items</h1>
+
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Search by user, email, phone, or item...">
+  </div>
+
+  <div class="table-container">
+    <table id="borrowTable">
+      <thead>
+        <tr>
+          <th></th>
+          <th>User</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Total Borrowed</th>
+        </tr>
+      </thead>
+      <tbody id="borrowTableBody">
+        <tr><td colspan="5" class="loading">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    async function fetchAllBorrowed() {
+      try {
+        const res = await fetch("/api/borrowed/all");
+        const data = await res.json();
+        const tbody = document.getElementById("borrowTableBody");
+
+        tbody.innerHTML = "";
+
+        if (data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No borrowed items found</td></tr>';
+          return;
+        }
+
+        // ✅ Group by user_id
+        const grouped = {};
+        data.forEach(row => {
+          if (!grouped[row.user_name]) {
+            grouped[row.user_name] = {
+              email: row.email,
+              phone_number: row.phone_number,
+              items: []
+            };
+          }
+          grouped[row.user_name].items.push(row);
+        });
+
+        // ✅ Create table rows
+        Object.entries(grouped).forEach(([username, info], index) => {
+          const userRow = document.createElement("tr");
+          userRow.classList.add("expandable");
+          userRow.innerHTML = `
+            <td><span class="toggle-icon">▶</span></td>
+            <td>${username}</td>
+            <td>${info.email || "-"}</td>
+            <td>${info.phone_number || "-"}</td>
+            <td>${info.items.length}</td>
+          `;
+
+          const detailsRow = document.createElement("tr");
+          detailsRow.classList.add("details-row");
+          detailsRow.innerHTML = `
+            <td colspan="5">
+              <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                  <tr style="background:#f0f0f0;">
+                    <th>Item</th>
+                    <th>Borrow Date</th>
+                    <th>Return Date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${info.items.map(item => `
+                    <tr>
+                      <td>${item.item_name}</td>
+                      <td>${new Date(item.borrow_date).toLocaleDateString()}</td>
+                      <td>${item.return_date ? new Date(item.return_date).toLocaleDateString() : "-"}</td>
+                      <td class="status ${item.status}">${item.status}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </td>
+          `;
+
+          // Expand/collapse handler
+          userRow.addEventListener("click", () => {
+            const icon = userRow.querySelector(".toggle-icon");
+            const isOpen = detailsRow.style.display === "table-row";
+            detailsRow.style.display = isOpen ? "none" : "table-row";
+            userRow.classList.toggle("expanded", !isOpen);
+          });
+
+          tbody.appendChild(userRow);
+          tbody.appendChild(detailsRow);
+        });
+      } catch (err) {
+        console.error("Error fetching borrowed items:", err);
+        document.getElementById("borrowTableBody").innerHTML =
+          '<tr><td colspan="5" style="text-align:center;color:red;">Failed to load data</td></tr>';
+      }
+    }
+
+    // ✅ Search filter
+    document.getElementById("searchInput").addEventListener("input", function () {
+      const filter = this.value.toLowerCase();
+      const rows = document.querySelectorAll("#borrowTableBody .expandable");
+
+      rows.forEach(row => {
+        const cells = row.querySelectorAll("td");
+        const match = Array.from(cells).some(td => td.textContent.toLowerCase().includes(filter));
+        row.style.display = match ? "" : "none";
+        const nextRow = row.nextElementSibling;
+        if (nextRow && nextRow.classList.contains("details-row")) {
+          nextRow.style.display = "none";
+        }
+      });
+    });
+
+    fetchAllBorrowed();
+  </script>
+</body>
+</html>

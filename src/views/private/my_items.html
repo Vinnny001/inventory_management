@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Borrowed Items - JKUDSA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #1e293b;
+      color: #fff;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+    .sidebar h2 {
+      margin-bottom: 20px;
+      font-size: 1.2rem;
+      text-align: center;
+    }
+    .sidebar ul { list-style: none; }
+    .sidebar ul li { margin: 10px 0; }
+    .sidebar ul li a {
+      text-decoration: none;
+      color: #cbd5e1;
+      display: block;
+      padding: 8px;
+      border-radius: 5px;
+      transition: 0.2s;
+    }
+    .sidebar ul li a:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    #usersList { display: none; }
+    #inventory { display: none; }
+
+    /* Main */
+    .main {
+      flex: 1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .header h1 { font-size: 1.5rem; }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    table thead { background: #1e293b; color: #fff; }
+    table th, table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    table tr:hover { background: #f9fafb; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; display: flex; justify-content: space-around; }
+      .main { padding: 10px; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>JKUSDA</h2>
+    <ul>
+      <li><a href="/api/dashboard.html">Dashboard</a></li>
+      <li>
+        <a href="javascript:void(0)" onclick="toggleStoreMenu()">Store ▸</a>
+        <ul id="storeSubmenu" style="display: none; margin-left: 15px;">
+          <li id="inventory"><a href="/api/inventory.html">Inventory</a></li>
+          <li><a href="/api/borrowed.html">Borrowed Items</a></li>
+          <li>
+            <a href="javascript:void(0)" onclick="toggleBorrowMenu()">Borrow ▸</a>
+            <ul id="borrowSubmenu" style="display: none; margin-left: 15px;">
+              <li><a href="/api/borrow.html">Items</a></li>
+              <li><a href="/api/borrow-list_cart.html">List</a></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li id="usersList"><a href="/api/users.html">Users</a></li>
+      <li><a href="#" onclick="logout()">Logout</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <h2 style="margin-bottom:10px;">Returned Items</h2>
+
+<table id="returnedTable">
+  <thead>
+    <tr>
+      <th>Item Name</th>
+      <th>Borrow Date</th>
+      <th>Return Date</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<br>
+
+<h2 style="margin-bottom:10px;">Rejected Requests</h2>
+<table id="rejectedTable">
+  <thead>
+    <tr>
+      <th>Item Name</th>
+      <th>Rejected Date</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+  </main>
+
+  <script>
+const returnedTbody = document.querySelector("#returnedTable tbody");
+const rejectedTbody = document.querySelector("#rejectedTable tbody");
+
+
+    let currentUser = null;
+    const usersList = document.getElementById("usersList");
+    const inventoryLink = document.getElementById("inventory");
+
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/me", { credentials: "include" });
+        if (!res.ok) throw new Error("Not authenticated");
+
+        currentUser = await res.json();
+
+        // ✅ Show Users link only for admins
+        if (currentUser.access_level === "admin") {
+          usersList.style.display = "block";
+          inventoryLink.style.display = "block";
+        }
+
+        fetchReturnedItems();
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        window.location.href = "/login.html";
+      }
+    }
+
+
+
+
+    async function fetchReturnedItems() {
+  try {
+    const res = await fetch("/api/my_items_history", { credentials: "include" });
+    if (!res.ok) {
+      console.warn("returnedItems fetch failed", res.status);
+      return;
+    }
+
+    const data = await res.json();
+
+    // returnedItems = items that were actually borrowed
+    const returnedItems = data.filter(b =>
+      ["returned"].includes(b.status)
+    );
+
+    // Rejected = never borrowed
+    const rejectedItems = data.filter(b =>
+      b.status === "rejected"
+    );
+
+    renderReturnedTable(returnedItems);
+    renderRejectedTable(rejectedItems);
+
+  } catch (err) {
+    console.error("Error fetching borrowed items:", err);
+  }
+}
+
+
+
+    // Render borrowed items table
+
+    function renderReturnedTable(data) {
+  returnedTbody.innerHTML = "";
+
+  if (data.length === 0) {
+    returnedTbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align:center;">No borrowed items</td>
+      </tr>`;
+    return;
+  }
+
+  data.forEach(b => {
+    let returnDate = "-";
+
+    if (b.status === "returned") {
+      returnDate = new Date(b.return_date).toLocaleDateString();
+    }
+    
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${b.name}</td>
+      <td>${new Date(b.borrow_date).toLocaleDateString()}</td>
+      <td>${returnDate}</td>
+    `;
+    returnedTbody.appendChild(tr);
+  });
+}
+
+//Rejected table
+
+function renderRejectedTable(data) {
+  rejectedTbody.innerHTML = "";
+
+  if (data.length === 0) {
+    rejectedTbody.innerHTML = `
+      <tr>
+        <td colspan="3" style="text-align:center;">No rejected requests</td>
+      </tr>`;
+    return;
+  }
+
+  data.forEach(b => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${b.name}</td>
+      <td>${new Date(b.activity_date).toLocaleDateString()}</td>
+    `;
+    rejectedTbody.appendChild(tr);
+  });
+}
+
+
+
+
+
+    async function logout() {
+      if (!confirm("Are you sure you want to log out?")) return;
+      try {
+        await fetch("/api/logout", { method: "POST", credentials: "include" });
+        window.location.href = "/login.html";
+      } catch (err) {
+        console.error("Logout failed:", err);
+      }
+    }
+
+    function toggleStoreMenu() {
+      const submenu = document.getElementById("storeSubmenu");
+      const link = submenu.previousElementSibling;
+      if (submenu.style.display === "none") {
+        submenu.style.display = "block";
+        link.innerHTML = "Store ▼";
+      } else {
+        submenu.style.display = "none";
+        link.innerHTML = "Store ▸";
+      }
+    }
+
+    function toggleBorrowMenu() {
+      const submenu = document.getElementById("borrowSubmenu");
+      const link = submenu.previousElementSibling;
+      if (submenu.style.display === "none") {
+        submenu.style.display = "block";
+        link.innerHTML = "Borrow ▼";
+      } else {
+        submenu.style.display = "none";
+        link.innerHTML = "Borrow ▸";
+      }
+    }
+
+    fetchUser();
+  </script>
+</body>
+</html>

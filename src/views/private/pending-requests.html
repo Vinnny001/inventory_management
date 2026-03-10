@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pending Requests - JKUSDA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 220px;
+      background: #1e293b;
+      color: #fff;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+    .sidebar h2 { margin-bottom: 20px; text-align: center; }
+    .sidebar ul { list-style: none; }
+    .sidebar ul li { margin: 10px 0; }
+    .sidebar ul li a {
+      text-decoration: none;
+      color: #cbd5e1;
+      display: block;
+      padding: 8px;
+      border-radius: 5px;
+      transition: 0.2s;
+    }
+    .sidebar ul li a:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    .main {
+      flex: 1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    th {
+      background: #1e293b;
+      color: #fff;
+    }
+    tr:hover td { background: #f9fafb; }
+
+    .status {
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-weight: bold;
+      text-transform: capitalize;
+    }
+    .pending { background: #fef9c3; color: #92400e; }
+    .approved { background: #d1fae5; color: #065f46; }
+
+    .arrow {
+      cursor: pointer;
+      display: inline-block;
+      width: 20px;
+      text-align: center;
+      color: #1e293b;
+      font-weight: bold;
+      transition: transform 0.2s ease;
+    }
+    .batch-row.expandable:hover {
+      cursor: pointer;
+      background: #f1f5f9;
+    }
+    .batch-row.expandable:hover .arrow {
+      color: #0f172a;
+    }
+    .sub-item td {
+      background: #f9fafb;
+    }
+
+    .cancel-btn {
+      background: #dc2626;
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    .cancel-btn:hover {
+      background: #b91c1c;
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>JKUSDA</h2>
+    <ul>
+      <li><a href="/api/dashboard.html">Dashboard</a></li>
+      <li><a href="/api/borrow.html">Borrow Items</a></li>
+      <li><a href="/api/borrow-list_cart.html">Borrow List</a></li>
+      <li><a href="/api/pending-requests.html" class="active">Pending Requests</a></li>
+      <li><a href="#" onclick="logout()">Logout</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <h1>My Pending / Approved Requests</h1>
+    </div>
+
+    <table id="requestsTable">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Description</th>
+          <th>Quantity</th>
+          <th>Request Date</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </main>
+
+  <script>
+async function fetchRequests() {
+  try {
+    const res = await fetch("/api/user/request-status", { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to fetch request status");
+    const data = await res.json();
+    renderTable(data);
+  } catch (err) {
+    console.error("Error loading request status:", err);
+    document.querySelector("#requestsTable tbody").innerHTML =
+      "<tr><td colspan='6'>Error loading requests</td></tr>";
+  }
+}
+
+function renderTable(requests) {
+  const tbody = document.querySelector("#requestsTable tbody");
+  tbody.innerHTML = "";
+
+  if (!requests.length) {
+    tbody.innerHTML = "<tr><td colspan='6'>No requests found</td></tr>";
+    return;
+  }
+
+  // Group by batch_code
+  const grouped = {};
+  for (const r of requests) {
+    const code = r.batch_code && r.batch_code.trim() !== "" ? r.batch_code : `no-batch-${r.request_id}`;
+    if (!grouped[code]) grouped[code] = [];
+    grouped[code].push(r);
+  }
+
+  for (const [batchCode, items] of Object.entries(grouped)) {
+    const first = items[0];
+    const hasMultiple = items.length > 1;
+
+    const trBatch = document.createElement("tr");
+    trBatch.classList.add("batch-row");
+    if (hasMultiple) trBatch.classList.add("expandable");
+
+    const arrow = hasMultiple ? `<span class="arrow">▶</span>` : "";
+
+    trBatch.innerHTML = `
+      <td>${arrow} ${first.item_name}</td>
+      <td>${first.description || "—"}</td>
+      <td>${first.quantity}</td>
+      <td>${new Date(first.request_date).toLocaleString()}</td>
+      <td><span class="status ${first.status}">${first.status}</span></td>
+      <td><button class="cancel-btn" onclick="cancelRequest(${first.request_id})">Cancel</button></td>
+    `;
+    tbody.appendChild(trBatch);
+
+    if (hasMultiple) {
+      items.slice(1).forEach(it => {
+        const subTr = document.createElement("tr");
+        subTr.classList.add("sub-item");
+        subTr.style.display = "none";
+        subTr.innerHTML = `
+          <td>↳ ${it.item_name}</td>
+          <td>${it.description || "—"}</td>
+          <td>${it.quantity}</td>
+          <td>${new Date(it.request_date).toLocaleString()}</td>
+          <td><span class="status ${it.status}">${it.status}</span></td>
+          <td><button class="cancel-btn" onclick="cancelRequest(${it.request_id})">Cancel</button></td>
+        `;
+        tbody.appendChild(subTr);
+      });
+
+      trBatch.addEventListener("click", e => {
+        // prevent collapsing when clicking the Cancel button
+        if (e.target.classList.contains("cancel-btn")) return;
+        const isExpanded = trBatch.classList.toggle("expanded");
+        const arrowEl = trBatch.querySelector(".arrow");
+        arrowEl.textContent = isExpanded ? "▼" : "▶";
+        let next = trBatch.nextElementSibling;
+        while (next && next.classList.contains("sub-item")) {
+          next.style.display = isExpanded ? "table-row" : "none";
+          next = next.nextElementSibling;
+        }
+      });
+    }
+  }
+}
+
+async function cancelRequest(requestId) {
+  if (!confirm("Are you sure you want to cancel this request?")) return;
+  try {
+    const res = await fetch(`/api/user/cancel-request/${requestId}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+    if (!res.ok) throw new Error("Failed to cancel request");
+    alert("Request canceled successfully.");
+    fetchRequests();
+  } catch (err) {
+    console.error("Cancel error:", err);
+    alert("Error canceling request.");
+  }
+}
+
+async function logout() {
+  if (!confirm("Are you sure you want to log out?")) return;
+  await fetch("/api/logout", { method: "POST", credentials: "include" });
+  window.location.href = "/login.html";
+}
+
+fetchRequests();
+  </script>
+</body>
+</html>

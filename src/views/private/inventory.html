@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inventory - JKUDSA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #1e293b;
+      color: #fff;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+    .sidebar h2 {
+      margin-bottom: 20px;
+      font-size: 1.3rem;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .sidebar ul { list-style: none; }
+    .sidebar ul li { margin: 10px 0; }
+    .sidebar ul li a {
+      text-decoration: none;
+      color: #cbd5e1;
+      display: block;
+      padding: 8px;
+      border-radius: 5px;
+      transition: 0.2s;
+    }
+    .sidebar ul li a:hover { background: #334155; color: #fff; }
+
+    /* Main Area */
+    .main {
+      flex: 1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .header-tools-global {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    input[type="text"], select {
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 5px;
+      outline: none;
+    }
+
+    /* Section + Table */
+    .section {
+      margin-bottom: 40px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .section-header { /* NEW */
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .section h2 {
+      color: #1e293b;
+      border-bottom: 2px solid #1e293b;
+      display: inline-block;
+      padding-bottom: 4px;
+      margin: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    thead {
+      background: #1e293b;
+      color: #fff;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+    }
+    tr:hover { background: #f9fafb; }
+
+    .btn {
+      padding: 6px 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .btn-add {
+      background: #2563eb;
+      color: #fff;
+      padding: 8px 16px;
+      
+    }
+    .btn-edit { background: #10b981; color: #fff; }
+    .btn-delete { background: #ef4444; color: #fff; }
+    .btn:hover { opacity: 0.9; }
+
+    /* Modal */
+    .modal { /* NEW */
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    .modal-content h3 {
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    .modal-content label {
+      display: block;
+      margin: 10px 0 5px;
+    }
+    .modal-content input, .modal-content textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 15px;
+      gap: 10px;
+    }
+
+
+    .sidebar a.active {
+  background: #334155;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Dropdown */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  min-width: 160px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  z-index: 100;
+}
+
+.dropdown-menu a {
+  display: block;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: #333;
+}
+
+
+    .dropdown-menu a:hover {
+  background: #f1f5f9;
+}
+
+.dropdown.show .dropdown-menu {
+  display: block;
+}
+
+
+input[readonly], textarea[readonly] {
+  background-color: #f9fafb;
+  color: #555;
+  cursor: not-allowed;
+}
+
+
+
+
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; display: flex; justify-content: space-around; }
+      .main { padding: 10px; }
+      .header-tools-global { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2>JKUSDA</h2>
+    <ul>
+      <li><a href="/api/dashboard.html">Dashboard</a></li>
+      <li><a href="/api/inventory.html" class="active">Inventory</a></li>
+      <li><a href="/api/borrowed.html">Borrowed</a></li>
+      <li><a href="/api/users.html">Users</a></li>
+      <li><a href="#" onclick="logout()">Logout</a></li>
+    </ul>
+  </aside>
+
+
+  <!-- Main Content -->
+  <main class="main">
+
+
+    <div class="dropdown">
+    <button class="btn-add">Update ▾</button>
+  <div class="dropdown-menu">
+    <a href="/api/add-category.html">Add Item</a>
+    <a href="/api/add-item.html">Update Item</a>
+    
+  </div>
+  </div>
+
+
+    <!-- Global Filter Bar -->
+    <div class="header-tools-global">
+      <input type="text" id="globalSearch" placeholder="Search item name..." oninput="applyGlobalFilter()" />
+      <select id="tableSelect" onchange="applyGlobalFilter()">
+        <option value="all">All Tables</option>
+        <option value="holy">Holy Items</option>
+        <option value="items">General Items</option>
+        <option value="preserved">Preserved Items</option>
+      </select>
+    </div>
+
+    <!-- Sections -->
+    <div class="section" id="holyItemsSection">
+      <div class="section-header">
+        <h2>Holy Items</h2>
+        <button class="btn btn-edit" onclick="updateSection('holy')">Update Items</button>
+        
+      </div>
+      <table id="holyTable">
+        <thead><tr><th>Name</th><th>Description</th><th>Condition</th><th>Qty</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="section" id="itemsSection">
+      <div class="section-header">
+        <h2>General Items</h2>
+        <button class="btn btn-edit" onclick="updateSection('items')">Update Items</button>
+      </div>
+      <table id="itemsTable">
+        <thead><tr><th>Name</th><th>Description</th><th>Condition</th><th>Qty</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="section" id="preservedSection">
+      <div class="section-header">
+        <h2>Preserved Items</h2>
+        <button class="btn btn-edit" onclick="updateSection('preserved')">Update Items</button>
+      </div>
+      <table id="preservedTable">
+        <thead><tr><th>Name</th><th>Description</th><th>Condition</th><th>Qty</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Modal (Add/Edit Form) -->
+<div id="itemModal" class="modal">
+  <div class="modal-content">
+    <h3 id="modalTitle">Add Item</h3>
+
+    <label>Name</label>
+    <input type="text" id="modalName" placeholder="Item name">
+
+    <label>Description</label>
+    <textarea id="modalDesc" rows="3" placeholder="Description"></textarea>
+
+    <label>Condition</label>
+    <input type="text" id="modalCondition" placeholder="Condition">
+
+    <label>Quantity</label>
+<input type="number" id="modalQty" placeholder="0">
+
+<!-- 👇 Action dropdown (hidden by default) -->
+<div id="qtyActionContainer" style="display: none; margin-top: 8px;">
+  <label>Action</label>
+  <select id="qtyAction" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px;">
+    <option value="replace" selected>Replace</option>
+    <option value="add">Add</option>
+    <option value="subtract">Subtract</option>
+  </select>
+</div>
+
+
+    <div class="modal-buttons">
+      <button class="btn btn-edit" onclick="saveItem()">Save</button>
+      <button class="btn btn-delete" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+  <script>
+    const dataSets = { holy: [], items: [], preserved: [] };
+    let currentType = null;
+    let editingId = null;
+    const addButton = document.querySelector(".btn-add"); // main Add button
+
+    let originalQty = null; // to remember the original quantity
+
+
+
+    function updateSection(table) { 
+  window.location.href = `/api/add-item.html?type=${table}`;
+}
+
+
+
+
+    async function fetchAllInventory() {
+      try {
+        setLoading(true);
+        const [holy, items, preserved] = await Promise.all([
+          fetch("/api/inventory/holy", { credentials: "include" }).then(r => r.json()),
+          fetch("/api/inventory/items", { credentials: "include" }).then(r => r.json()),
+          fetch("/api/inventory/preserved", { credentials: "include" }).then(r => r.json())
+        ]);
+
+        dataSets.holy = holy;
+        dataSets.items = items;
+        dataSets.preserved = preserved;
+
+        renderAllTables();
+        setLoading(false);
+      } catch (err) {
+        console.error("❌ Failed to load inventory:", err);
+      }
+    }
+
+    function renderAllTables() {
+      renderTable("holy", dataSets.holy);
+      renderTable("items", dataSets.items);
+      renderTable("preserved", dataSets.preserved);
+    }
+
+    function renderTable(type, data) {
+      const tbody = document.querySelector(`#${type}Table tbody`);
+      tbody.innerHTML = "";
+      data.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.dataset.itemId = item.item_id;
+        tr.innerHTML = `
+  <td>${item.name}</td>
+  <td>${item.description || "-"}</td>
+  <td>${item.condition || "-"}</td>
+  <td>${item.quantity}</td>
+  
+  <td>
+    <button class="btn btn-edit" onclick="openModal('${type}', ${item.item_id})">Edit</button>
+    <button class="btn btn-delete" onclick="deleteItem('${type}', ${item.item_id})">Delete</button>
+  </td>`;
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function applyGlobalFilter() {
+      const search = document.getElementById("globalSearch").value.toLowerCase();
+      const tableFilter = document.getElementById("tableSelect").value;
+      for (const key in dataSets) {
+        const filtered = dataSets[key].filter(item => item.name.toLowerCase().includes(search));
+        const section = document.getElementById(`${key}ItemsSection`);
+        section.style.display = (tableFilter === "all" || tableFilter === key) ? "block" : "none";
+        renderTable(key, filtered);
+      }
+    }
+
+    
+
+    function openModal(type, id) {
+  currentType = type;
+  editingId = id;
+
+  const item = dataSets[type].find(i => i.item_id === id);
+  if (!item) return alert("Item not found.");
+
+  const modal = document.getElementById("itemModal");
+  const nameInput = document.getElementById("modalName");
+  const descInput = document.getElementById("modalDesc");
+  const conditionInput = document.getElementById("modalCondition");
+  const qtyInput = document.getElementById("modalQty");
+
+  // populate modal
+  document.getElementById("modalTitle").textContent = "View / Edit Item";
+  nameInput.value = item.name || "";
+  descInput.value = item.description || "";
+  conditionInput.value = item.condition || "-";
+  qtyInput.value = item.quantity || 0;
+
+  originalQty = item.quantity || 0; // store original quantity
+
+  // 🔒 make name, description, condition read-only
+  nameInput.readOnly = true;
+  descInput.readOnly = true;
+  conditionInput.readOnly = true;
+
+  // 🔓 only quantity editable
+  qtyInput.readOnly = false;
+
+  // ✅ Disable Save button and hide dropdown initially
+  saveBtn.disabled = true;
+  saveBtn.style.opacity = "0.5";
+  saveBtn.style.cursor = "not-allowed";
+  qtyActionContainer.style.display = "none";
+
+  modal.style.display = "flex";
+}
+
+
+
+
+
+function closeModal() {
+  document.getElementById("itemModal").style.display = "none";
+  document.getElementById("modalTitle").textContent = "Add Item";
+
+  const nameInput = document.getElementById("modalName");
+  const descInput = document.getElementById("modalDesc");
+  const conditionInput = document.getElementById("modalCondition");
+  const qtyInput = document.getElementById("modalQty");
+
+  nameInput.value = "";
+  descInput.value = "";
+  conditionInput.value = "";
+  qtyInput.value = "";
+
+  // reset read-only states
+  nameInput.readOnly = false;
+  descInput.readOnly = false;
+  conditionInput.readOnly = false;
+  qtyInput.readOnly = false;
+
+  editingId = null;
+  currentType = null;
+
+  qtyActionContainer.style.display = "none";
+saveBtn.disabled = false;
+saveBtn.style.opacity = "1";
+  saveBtn.style.cursor = "pointer";
+
+}
+
+
+
+/// Show/hide quantity action dropdown dynamically + disable Save when same
+const qtyInput = document.getElementById("modalQty");
+const qtyActionContainer = document.getElementById("qtyActionContainer");
+const qtyAction = document.getElementById("qtyAction");
+const saveBtn = document.querySelector(".btn-edit");
+
+qtyInput.addEventListener("input", () => {
+  const value = qtyInput.value.trim();
+  const qtyNum = parseInt(value, 10);
+
+  // If empty input
+  if (value === "") {
+    qtyActionContainer.style.display = "none";
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = "0.5";
+    return;
+  }
+
+  // If same as original
+  if (qtyNum === originalQty) {
+    qtyActionContainer.style.display = "none";
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = "0.5";
+    saveBtn.style.cursor = "not-allowed"; 
+    return;
+  }
+
+  // Different value → enable and show action selector
+  qtyActionContainer.style.display = "block";
+  qtyAction.innerHTML = `
+    <option value="replace" selected>Replace</option>
+    <option value="add">Add</option>
+    <option value="subtract">Subtract</option>
+  `;
+  saveBtn.disabled = false;
+  saveBtn.style.opacity = "1";
+  saveBtn.style.cursor = "pointer"; 
+});
+
+
+
+
+
+
+
+    async function saveItem() {
+      const name = document.getElementById("modalName").value.trim();
+      const description = document.getElementById("modalDesc").value.trim();
+      const quantity = parseInt(document.getElementById("modalQty").value);
+
+      if (!name || isNaN(quantity)) {
+        alert("Name and quantity are required.");
+        return;
+      }
+
+      const payload = { name, description, quantity };
+
+      const url = editingId
+        ? `/api/inventory/${currentType}/${editingId}`
+        : `/api/inventory/${currentType}`;
+
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      alert(data.message || data.error);
+      closeModal();
+      fetchAllInventory();
+    }
+
+    async function deleteItem(type, id) {
+      if (!confirm("Delete this item?")) return;
+      const res = await fetch(`/api/inventory/${type}/${id}`, { method: "DELETE", credentials: "include" });
+      const data = await res.json();
+      alert(data.message || data.error);
+      fetchAllInventory();
+    }
+
+    async function logout() {
+      if (!confirm("Logout?")) return;
+      await fetch("/api/logout", { method: "POST", credentials: "include" });
+      window.location.href = "/login.html";
+    }
+
+    function setLoading(state) {
+  document.body.style.opacity = state ? "0.6" : "1";
+  document.body.style.pointerEvents = state ? "none" : "auto";
+}
+
+
+// Toggle dropdown menu
+document.querySelector(".btn-add").addEventListener("click", function () {
+  this.parentElement.classList.toggle("show");
+});
+
+// Close dropdown when clicking outside
+window.addEventListener("click", function (e) {
+  if (!e.target.matches(".btn-add")) {
+    document.querySelectorAll(".dropdown").forEach(d => d.classList.remove("show"));
+  }
+});
+
+
+
+fetchAllInventory();
+
+  </script>
+</body>
+</html>

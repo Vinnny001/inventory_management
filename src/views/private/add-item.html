@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <!-- ✅ Luckysheet CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/pluginsCss.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/plugins.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/css/luckysheet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/assets/iconfont/iconfont.css" />
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/js/plugin.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/luckysheet.umd.js"></script>
+
+  <title>Update Item Quantity - JKUDSA</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 20px;
+      margin-top: 0;
+      padding-top: 0;
+    }
+    .container {
+      max-width: 900px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding-top: 1px;
+      margin-top: 5px;
+    }
+    h1 { margin-bottom: 0;
+        padding-top: 1px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-save { background: #2563eb; color: #fff; }
+    .btn-cancel { background: #9ca3af; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Update Items</h1>
+
+    <div style="margin-bottom: 10px;">
+      <p><strong>Item Type:</strong> <span id="itemTypeLabel"></span></p>
+      <button id="saveSheet" class="btn-save" style="background:#10b981;">Save Changes</button>
+      <button class="btn-cancel" onclick="window.location.href='/api/inventory.html'">Cancel</button>
+    </div>
+
+    <div id="sheetContainer" style="margin:0 auto;width:100%;height:80vh;"></div>
+  </div>
+
+  <script>
+const params = new URLSearchParams(window.location.search);
+const currentType = params.get("type");
+
+if (!currentType) {
+  alert("No item type specified in URL. Redirecting...");
+  window.location.href = "/api/inventory.html";
+}
+
+document.getElementById("itemTypeLabel").textContent =
+  currentType.charAt(0).toUpperCase() + currentType.slice(1);
+
+let originalData = [];
+
+window.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const res = await fetch(`/api/inventory/${currentType}`, { credentials: "include" });
+    const items = await res.json();
+
+    const header = ["Name", "Description", "Condition", "Quantity"];
+    const visibleData = [header, ...items.map(i => [
+      i.name,
+      i.description || "",
+      i.condition || "",
+      i.quantity
+    ])];
+
+    originalData = items.map(i => ({
+      id: i.item_id,
+      name: i.name,
+      description: i.description || "",
+      condition: i.condition || "",
+      quantity: i.quantity
+    }));
+
+    document.getElementById("sheetContainer").innerHTML = "";
+
+    if (typeof luckysheet === "undefined" || !luckysheet.create) {
+      alert("Luckysheet failed to load properly.");
+      console.error("Luckysheet object:", window.luckysheet);
+      return;
+    }
+
+    // ✅ Initialize Luckysheet
+    luckysheet.create({
+      container: 'sheetContainer',
+      data: [{
+        name: "Items",
+        color: "#1874ec",
+        data: visibleData.map(row =>
+          row.map(val => ({
+            v: val,
+            ct: { t: "s" }
+          }))
+        )
+      }],
+      allowEdit: true,
+      enableAddRow: true,
+      enableAddCol: false,
+      showtoolbar: true,
+      showinfobar: false,
+      sheetFormulaBar: false,
+      showsheetbar: false,
+      allowCopy: true,
+      hook: {
+        cellEditBefore: (range) => {
+          const { row } = range[0];
+          if (row === 0) return false; // 🔒 Lock header
+          return true;
+        },
+        updated: () => applyConditionDropdowns(items.length)
+      }
+    });
+
+    setTimeout(() => applyConditionDropdowns(items.length), 800);
+
+  } catch (err) {
+    console.error(err);
+    alert("Failed to load items.");
+  }
+});
+
+// ✅ Apply dropdowns for "Condition" column
+function applyConditionDropdowns(existingRowCount) {
+  const dropdownOptions = ["Good", "Normal", "Poor"];
+  const sheet = luckysheet.getLuckysheetfile()[0];
+  const data = sheet.data || [];
+  const totalRows = Math.max(existingRowCount, data.length - 1);
+
+  for (let r = 1; r <= totalRows; r++) {
+    luckysheet.setRangeDataVerification({
+      range: [{ row: [r, r], column: [2, 2] }],
+      type: "dropdown",
+      value1: dropdownOptions.join(","),
+      prohibitInput: true,
+      allowNull: false,
+      hintShow: false
+    });
+  }
+  console.log(`✅ Dropdowns applied to ${totalRows} rows`);
+}
+
+// ✅ Save handler — handles add, update, and delete
+document.getElementById("saveSheet").addEventListener("click", async () => {
+  luckysheet.exitEditMode();
+
+  const sheet = luckysheet.getLuckysheetfile()[0];
+  const data = sheet.data;
+  const updates = [];
+
+  // 🟢 Build a quick lookup of current visible item names
+  const currentNames = new Set();
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (!row) continue;
+
+    const name = row[0]?.v ?? row[0];
+    if (name) currentNames.add(name);
+  }
+
+  // 🔴 Detect deleted items (present in originalData but missing now)
+  for (const orig of originalData) {
+    const stillExists = data.some(
+      (r, idx) => idx > 0 && (r[0]?.v ?? r[0]) === orig.name
+    );
+    if (!stillExists) {
+      updates.push({ _action: "delete", id: orig.id });
+    }
+  }
+
+  // ✏️ Detect new and updated items
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (!row) continue;
+
+    const name = row[0]?.v ?? row[0];
+    const desc = row[1]?.v ?? row[1];
+    const cond = (row[2]?.v ?? row[2])?.trim?.() ?? "";
+    const qty = parseInt(row[3]?.v ?? row[3]) || 0;
+
+    if (!name && !desc && !cond && !qty) continue;
+
+    const original = originalData[i - 1];
+
+    if (!original) {
+      // 🆕 New row
+      updates.push({
+        _action: "add",
+        name,
+        description: desc,
+        condition: cond,
+        quantity: qty
+      });
+    } else if (
+      name !== original.name ||
+      desc !== original.description ||
+      cond !== original.condition ||
+      qty !== original.quantity
+    ) {
+      // ✏️ Updated row
+      updates.push({
+        _action: "update",
+        id: original.id,
+        name,
+        description: desc,
+        condition: cond,
+        quantity: qty
+      });
+    }
+  }
+
+  if (updates.length === 0) {
+    alert("No changes detected.");
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/update-items-batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ type: currentType, updates })
+    });
+
+    const result = await res.json();
+    alert(result.message || result.error);
+    if (result.message) location.reload();
+  } catch (err) {
+    console.error("❌ Save error:", err);
+    alert("Failed to save changes.");
+  }
+});
+
+</script>
+
+
+</body>
+</html>

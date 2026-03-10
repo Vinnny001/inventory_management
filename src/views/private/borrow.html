@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>JKUDSA Inventory Dashboard</title>
+  <style>
+    /* Reset & Base */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #1e293b;
+      color: #fff;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+    .sidebar h2 {
+      margin-bottom: 20px;
+      font-size: 1.2rem;
+      text-align: center;
+    }
+    .sidebar ul { list-style: none; }
+    .sidebar ul li { margin: 10px 0; }
+    .sidebar ul li a {
+      text-decoration: none;
+      color: #cbd5e1;
+      display: block;
+      padding: 8px;
+      border-radius: 5px;
+      transition: 0.2s;
+    }
+    .sidebar ul li a:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    /* Main */
+    .main {
+      flex: 1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .header h1 { font-size: 1.5rem; }
+    .search-bar input,
+    .header input {
+      padding: 8px;
+      width: 220px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    table thead { background: #1e293b; color: #fff; }
+    table th, table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    table tr:hover { background: #f9fafb; }
+
+    /* Buttons */
+    button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-borrow {
+      background: #16a34a;
+      color: #fff;
+    }
+    .btn-borrow:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    .btn-add {
+      background: #2563eb;
+      color: #fff;
+      padding: 8px 16px;
+      display: none;
+    }
+
+    #usersList {
+      display: none;
+    }
+
+    #inventory {
+      display: none;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 400px;
+      position: relative;
+    }
+    .modal-content h2 { margin-bottom: 15px; }
+    .modal-content label {
+      display: block;
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+    .modal-content input,
+    .modal-content textarea,
+    .modal-content select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .modal-content .actions {
+      margin-top: 15px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      color: #666;
+    }
+
+    .sidebar ul li ul li a {
+  font-size: 0.9rem;
+  padding-left: 20px;
+  color: #94a3b8;
+}
+.sidebar ul li ul li a:hover {
+  background: #475569;
+  color: #fff;
+}
+
+
+/* Dropdown */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  min-width: 160px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  z-index: 100;
+}
+
+.dropdown-menu a {
+  display: block;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: #333;
+}
+
+.dropdown-menu a:hover {
+  background: #f1f5f9;
+}
+
+.dropdown.show .dropdown-menu {
+  display: block;
+}
+
+/* Cart */
+.btn-cart {
+  background: #f97316; /* orange */
+  color: #fff;
+  padding: 8px 16px;
+  margin-right: 8px;
+}
+
+.cart {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+.cart img {
+  width: 28px;
+}
+.cart-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: red;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+
+tr.checked {
+  background-color: #e0f2fe !important;
+}
+
+
+
+
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; display: flex; justify-content: space-around; }
+      .main { padding: 10px; }
+      .header { flex-direction: column; align-items: flex-start; }
+      .header input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+  <h2>JKUSDA</h2>
+    <ul>
+      <li><a href="/api/dashboard.html">Dashboard</a></li>
+      <li>
+        <a href="javascript:void(0)" onclick="toggleStoreMenu()">Store ▸</a>
+        <ul id="storeSubmenu" style="display: none; margin-left: 15px;">
+          <li id="inventory"><a href="#">Inventory</a></li>
+          <li><a href="/api/borrowed.html">Borrowed Items</a></li>
+          <li>
+  <a href="javascript:void(0)" onclick="toggleBorrowMenu()">Borrow ▸</a>
+  <ul id="borrowSubmenu" style="display: none; margin-left: 15px;">
+    <li><a href="/api/borrow.html">Items</a></li>
+    <li><a href="/api/borrow-list_cart.html">List</a></li>
+  </ul>
+</li>
+
+        </ul>
+      </li>
+      <li id="userList"><a href="/api/users.html">Users</a></li>
+      <li><a href="#" onclick="logout()">Logout</a></li>
+    </ul>
+</aside>
+
+
+
+  <main class="main">
+    <div class="header">
+      <h1>Inventory Dashboard</h1>
+      <div>
+        <button class="btn-cart">+ Add to Cart</button>
+        <div class="dropdown">
+  <button class="btn-add">Update ▾</button>
+  <div class="dropdown-menu">
+    <a href="/api/add-category.html">Add Item</a>
+    <a href="/api/inventory.html">Update Item</a>
+    
+  </div>
+</div>
+        <input type="text" id="searchInput" placeholder="Search items...">
+
+        <div class="cart" onclick="goToCart()">
+          <img src="https://cdn-icons-png.flaticon.com/512/1170/1170678.png" alt="Cart">
+          <span class="cart-badge" id="cartCount">0</span>
+        </div>
+
+      </div>
+    </div>
+
+    <table id="inventoryTable">
+  <thead>
+  <tr>
+    <th>ID</th>
+    <th>Item Name</th>
+    <th>Description</th>
+    <th>Available</th>
+    <th><input type="checkbox" id="selectAll"></th> <!-- ✅ -->
+  </tr>
+</thead>
+
+  <tbody></tbody>
+</table>
+
+  </main>
+
+  <!-- Add Item Modal -->
+
+  
+  <div id="addItemModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeModal()">&times;</span>
+      <h2>Add New Item</h2>
+      <form id="addItemForm">
+        <label for="itemName">Name</label>
+        <input type="text" id="itemName" required>
+
+        <label for="itemDescription">Description</label>
+        <textarea id="itemDescription"></textarea>
+
+        <label for="itemQuantity">Quantity</label>
+        <input type="number" id="itemQuantity" min="1" required>
+
+        <label for="itemBorrowable">Borrowable?</label>
+        <select id="itemBorrowable">
+          <option value="1">Yes</option>
+          <option value="0">No</option>
+        </select>
+
+        
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let items = [];
+    const tbody = document.querySelector("#inventoryTable tbody");
+    const searchInput = document.getElementById("searchInput");
+    const modal = document.getElementById("addItemModal");
+    const addItemForm = document.getElementById("addItemForm");
+    const addButton = document.querySelector(".btn-add"); // main Add button
+    const usersList = document.getElementById("usersList"); // Users link
+    const inventoryLink = document.getElementById("inventory");
+    const btn_add = document.getElementById("btn-add");
+
+
+
+    let currentUser = null;
+
+
+    function toggleStoreMenu() {
+  const submenu = document.getElementById("storeSubmenu");
+  const link = submenu.previousElementSibling;
+
+  if (submenu.style.display === "none") {
+    submenu.style.display = "block";
+    link.innerHTML = "Store ▼";
+  } else {
+    submenu.style.display = "none";
+    link.innerHTML = "Store ▸";
+  }
+}
+
+
+
+    async function fetchUser() {
+  try {
+    const res = await fetch("/api/me", { credentials: "include" });
+    currentUser = await res.json();
+    // normalize id field
+    currentUser.id = currentUser.id || currentUser.user_id;
+
+    if (currentUser.access_level === "admin") {
+      addButton.style.display = "inline-block";
+      usersList.style.display = "inline-block";
+      inventoryLink.style.display = "inline-block";
+      btn_add.style.display = "inline-block";
+    }
+
+    if (currentUser && currentUser.id) {
+      updateCartCount(); // ✅ ensure badge updates after login
+    }
+    
+    
+
+  } catch (err) {
+    console.error("Error fetching user info:", err);
+  }
+}
+
+    // Fetch items from backend
+    async function fetchItems() {
+      try {
+        const res = await fetch("/api/items");
+        items = await res.json();
+        renderTable(items);
+      } catch (err) {
+        console.error("Error fetching items:", err);
+      }
+    }
+
+    // Render table
+function renderTable(data) {
+  tbody.innerHTML = "";
+  data.forEach((item, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${item.name}</td>
+      <td>${item.description || "-"}</td>
+      <td>${item.available}</td>
+      
+      <td><input type="checkbox" class="row-check" data-id="${item.id || item.item_id}" style="display:none"></td> <!-- ✅ -->
+    `;
+
+    // clicking a row activates selection mode
+    tr.addEventListener("click", e => {
+  if (!e.target.closest("input") && !e.target.closest("button")) {
+    const checkbox = tr.querySelector(".row-check");
+    checkbox.style.display = "inline-block";   // make sure it's visible
+    checkbox.checked = !checkbox.checked;      // toggle check/uncheck
+    updateCheckboxVisibility();
+  }
+});
+
+
+    tbody.appendChild(tr);
+  });
+}
+
+
+function enableCheckboxMode(selectedId) {
+  let found = false;
+  document.querySelectorAll(".row-check").forEach(cb => {
+    cb.style.display = "inline-block"; // always show
+    if (parseInt(cb.dataset.id) === selectedId) {
+      cb.checked = true;
+      found = true;
+    }
+  });
+
+  // Only run update if something was actually checked
+  if (found) {
+    updateCheckboxVisibility();
+  }
+}
+
+
+// Hide checkboxes if none are checked
+
+function updateCheckboxVisibility() {
+  const checkboxes = [...document.querySelectorAll(".row-check")];
+  const anyChecked = checkboxes.some(cb => cb.checked);
+  const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+
+  if (!anyChecked) {
+    // hide all checkboxes + reset "select all"
+    checkboxes.forEach(cb => {
+      cb.checked = false;
+      cb.style.display = "none";
+    });
+    document.getElementById("selectAll").checked = false;
+  } else {
+    // keep selectAll synced
+    document.getElementById("selectAll").checked = allChecked;
+  }
+document.querySelectorAll(".row-check").forEach(cb => {
+  cb.closest("tr").classList.toggle("checked", cb.checked);
+});
+
+}
+
+
+
+
+// Select all toggle
+document.addEventListener("change", e => {
+  if (e.target.id === "selectAll") {
+    const checked = e.target.checked;
+    document.querySelectorAll(".row-check").forEach(cb => {
+      cb.style.display = "inline-block"; // ✅ make all visible
+      cb.checked = checked;              // ✅ check/uncheck them
+    });
+    updateCheckboxVisibility();          // ✅ keep state synced
+  }
+});
+
+
+// Watch individual row checkboxes
+document.addEventListener("change", e => {
+  if (e.target.classList.contains("row-check")) {
+    updateCheckboxVisibility();
+  }
+});
+
+
+
+
+
+
+    // Search
+    searchInput.addEventListener("input", () => {
+      const term = searchInput.value.toLowerCase();
+      const filtered = items.filter(i => i.name.toLowerCase().includes(term));
+      renderTable(filtered);
+    });
+
+    // Borrow
+    
+// Cart functionality
+    document.querySelector(".btn-cart").addEventListener("click", async () => {
+  if (!currentUser || !currentUser.id) {
+    alert("You must be logged in to add items to cart.");
+    return;
+  }
+
+  const selected = [...document.querySelectorAll(".row-check:checked")];
+  if (selected.length === 0) {
+    alert("Please select at least one item.");
+    return;
+  }
+
+  for (let cb of selected) {
+    const itemId = parseInt(cb.dataset.id);
+    try {
+      const res = await fetch("/api/cart", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({
+    item_id: itemId,
+    quantity: 1
+  })
+});
+      const data = await res.json();
+      if (data.error) {
+        console.error("Cart error:", data.error);
+      }
+    } catch (err) {
+      console.error("Error adding to cart:", err);
+    }
+  }
+
+  alert("Selected items added to your cart.");
+  updateCartCount(); // refresh badge
+});
+
+
+
+
+    // Add to cart
+    
+
+
+    // Update cart badge
+    async function updateCartCount() {
+  try {
+    const res = await fetch("/api/cart/count", {
+      credentials: "include"   // 🔐 session-based
+    });
+    const data = await res.json();
+    document.getElementById("cartCount").textContent = data.count || 0;
+  } catch (err) {
+    console.error("Cart count error:", err);
+  }
+}
+
+
+
+
+    // Go to cart page
+    function goToCart() {
+      window.location.href = "/api/borrow-list_cart.html";
+    }
+
+
+    function goToAddItem() {
+  window.location.href = "/api/add-item.html";
+}
+
+// Toggle dropdown menu
+document.querySelector(".btn-add").addEventListener("click", function () {
+  this.parentElement.classList.toggle("show");
+});
+
+// Close dropdown when clicking outside
+window.addEventListener("click", function (e) {
+  if (!e.target.matches(".btn-add")) {
+    document.querySelectorAll(".dropdown").forEach(d => d.classList.remove("show"));
+  }
+});
+
+
+
+    // Modal controls
+    function openModal() { modal.style.display = "flex"; }
+    function closeModal() { modal.style.display = "none"; }
+
+    // Add Item
+    addItemForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const name = document.getElementById("itemName").value;
+      const description = document.getElementById("itemDescription").value;
+      const quantity = parseInt(document.getElementById("itemQuantity").value, 10);
+      const is_borrowable = parseInt(document.getElementById("itemBorrowable").value, 10);
+
+      try {
+        const res = await fetch("/api/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, description, quantity, is_borrowable })
+        });
+        const data = await res.json();
+        alert(data.message || data.error);
+
+        if (data.message) {
+          closeModal();
+          addItemForm.reset();
+          fetchItems();
+        }
+      } catch (err) {
+        console.error("Error adding item:", err);
+      }
+    });
+
+    // Initial load
+    fetchItems();
+
+fetchUser();
+
+updateCartCount();
+
+    async function logout() {
+  if (!confirm("Are you sure you want to log out?")) return;
+  
+  try {
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "include"
+    });
+    window.location.href = "/login.html";
+  } catch (err) {
+    console.error("Logout failed:", err);
+  }
+}
+
+
+
+  </script>
+</body>
+</html>

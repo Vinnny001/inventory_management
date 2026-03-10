@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Add New Item - JKUDSA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 50px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    h1 { margin-bottom: 20px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, textarea, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-save { background: #2563eb; color: #fff; }
+    .btn-cancel { background: #9ca3af; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Add New Item</h1>
+    <form id="addItemForm">
+
+      <label for="itemType">Category / Item Type</label>
+      <select id="itemType" required>
+        <option value="">-- Select Category --</option>
+        <option value="normal">Normal Item</option>
+        <option value="holy">Holy Item</option>
+        <option value="preserved">Preserved Item</option>
+      </select>
+
+      <label for="itemName">Item Name</label>
+      <input type="text" id="itemName" required>
+
+      <label for="itemDescription">Description</label>
+      <textarea id="itemDescription" required></textarea>
+
+      <label for="itemQuantity">Initial Quantity</label>
+      <input type="number" id="itemQuantity" min="1" required>
+
+      <!-- ✅ New Condition Field -->
+      <label for="itemCondition">Condition</label>
+      <select id="itemCondition" required>
+        <option value="">-- Select Condition --</option>
+        <option value="good">Good</option>
+        <option value="normal">Normal</option>
+        <option value="poor">Poor</option>
+      </select>
+
+      <div class="actions">
+        <button type="button" class="btn-cancel" onclick="window.location.href='/api/borrow.html'">Cancel</button>
+        <button type="submit" class="btn-save">Save Item</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/me", { credentials: "include" });
+        if (!res.ok) throw new Error("Not logged in");
+
+        currentUser = await res.json();
+        if (currentUser.access_level !== "admin") {
+          alert("Access denied.");
+          window.location.href = "/api/borrow.html";
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        window.location.href = "/login.html";
+      }
+    }
+
+    document.getElementById("addItemForm").addEventListener("submit", async e => {
+      e.preventDefault();
+
+      const type = document.getElementById("itemType").value;
+      const name = document.getElementById("itemName").value.trim();
+      const description = document.getElementById("itemDescription").value.trim();
+      const quantity = parseInt(document.getElementById("itemQuantity").value, 10);
+      const condition = document.getElementById("itemCondition").value;
+
+      try {
+        const res = await fetch("/api/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ type, name, description, quantity, condition })
+        });
+
+        const data = await res.json();
+        alert(data.message || data.error);
+
+        if (data.message) {
+          window.location.href = "/api/add-category.html";
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        alert("Failed to save item.");
+      }
+    });
+
+    fetchUser();
+  </script>
+</body>
+</html>

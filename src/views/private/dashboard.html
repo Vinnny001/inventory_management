@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard - JKUSDA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 220px;
+      background: #1e293b;
+      color: #fff;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+    .sidebar h2 {
+      margin-bottom: 20px;
+      font-size: 1.2rem;
+      text-align: center;
+    }
+    .sidebar ul { list-style: none; }
+    .sidebar ul li { margin: 10px 0; }
+    .sidebar ul li a {
+      text-decoration: none;
+      color: #cbd5e1;
+      display: block;
+      padding: 8px;
+      border-radius: 5px;
+      transition: 0.2s;
+    }
+    .sidebar ul li a:hover {
+      background: #334155;
+      color: #fff;
+    }
+    .sidebar ul li a.active {
+      background: #b3c9f7;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    #userList, #inventory, #card1, #card4 { display: none; }
+
+    .main { flex: 1; padding: 20px; overflow-x: auto; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .card h3 { color: #1e293b; margin-bottom: 10px; font-size: 1.2rem; }
+    .card p { font-size: 1.5rem; font-weight: bold; color: #2563eb; }
+
+    .activity {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; display: flex; justify-content: space-around; }
+      .main { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>JKUSDA</h2>
+    <ul>
+      <li><a href="/api/dashboard.html">Dashboard</a></li>
+
+      <li>
+        <a href="javascript:void(0)" onclick="toggleStoreMenu()">Store ▸</a>
+        <ul id="storeSubmenu" style="display: none; margin-left: 15px;">
+          <li id="inventory"><a href="/api/inventory.html">Inventory</a></li>
+
+          <!-- Borrowed Items placeholder (will be replaced dynamically) -->
+          <li id="borrowedItemsContainer"></li>
+
+          <li>
+            <a href="javascript:void(0)" onclick="toggleBorrowMenu()">Borrow ▸</a>
+            <ul id="borrowSubmenu" style="display: none; margin-left: 15px;">
+              <li><a href="/api/borrow.html">Items</a></li>
+              <li><a href="/api/track_requests.html">Track Requests</a></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+
+      <li id="userList"><a href="/api/users.html">Users</a></li>
+      <li><a href="#" onclick="logout()">Logout</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="header"><h1>Dashboard</h1></div>
+
+    <div class="cards">
+      <div class="card" id="card1">
+        <h3>Total Items</h3><p id="totalItems">0</p>
+      </div>
+      <div class="card" id="card2">
+        <h3>Borrowed</h3><p id="borrowedCount">0</p>
+      </div>
+      <div class="card" id="card3">
+        <h3>Available</h3><p id="availableCount">0</p>
+      </div>
+      <div class="card" id="card4">
+        <h3>Users</h3><p id="userCount">0</p>
+      </div>
+    </div>
+
+    <div class="activity">
+      <h2>Recent Activity</h2>
+      <ul id="activityList"><li>Loading...</li></ul>
+    </div>
+  </main>
+
+  <script>
+    let currentUser = null;
+
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/me", { credentials: "include" });
+        if (!res.ok) throw new Error("Not authenticated");
+        currentUser = await res.json();
+
+        // Admin-only features
+        if (currentUser.access_level === "admin") {
+          document.getElementById("userList").style.display = "block";
+          document.getElementById("inventory").style.display = "block";
+          document.getElementById("card1").style.display = "block";
+          document.getElementById("card4").style.display = "block";
+          setupBorrowedDropdown(true);
+        } else {
+          setupBorrowedDropdown(false);
+        }
+
+        fetchDashboardData();
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        window.location.href = "/login.html";
+      }
+    }
+
+    function setupBorrowedDropdown(isAdmin) {
+  const container = document.getElementById("borrowedItemsContainer");
+  if (isAdmin) {
+    container.innerHTML = `
+      <a href="javascript:void(0)" onclick="toggleBorrowedMenu()">Borrowed Items ▸</a>
+      <ul id="borrowedSubmenu" style="display:none; margin-left:15px;">
+        <li><a href="/api/my_items.html">My History</a></li>
+        <li><a href="/api/borrowed-all.html">All Items</a></li>
+        <li><a href="/api/admin-pending-requests.html">Approve Requests</a></li>
+      </ul>
+    `;
+  } else {
+    container.innerHTML = `<a href="/api/my_items.html">My History</a>`;
+  }
+}
+
+
+    function toggleBorrowedMenu() {
+      const submenu = document.getElementById("borrowedSubmenu");
+      const link = submenu.previousElementSibling;
+      if (submenu.style.display === "none") {
+        submenu.style.display = "block";
+        link.innerHTML = "Borrowed Items ▼";
+      } else {
+        submenu.style.display = "none";
+        link.innerHTML = "Borrowed Items ▸";
+      }
+    }
+
+    function toggleStoreMenu() {
+      const submenu = document.getElementById("storeSubmenu");
+      const link = submenu.previousElementSibling;
+      if (submenu.style.display === "none") {
+        submenu.style.display = "block";
+        link.innerHTML = "Store ▼";
+      } else {
+        submenu.style.display = "none";
+        link.innerHTML = "Store ▸";
+      }
+    }
+
+    function toggleBorrowMenu() {
+      const submenu = document.getElementById("borrowSubmenu");
+      const link = submenu.previousElementSibling;
+      if (submenu.style.display === "none") {
+        submenu.style.display = "block";
+        link.innerHTML = "Borrow ▼";
+      } else {
+        submenu.style.display = "none";
+        link.innerHTML = "Borrow ▸";
+      }
+    }
+
+    async function fetchDashboardData() {
+      try {
+        const res = await fetch("/api/dashboard-data", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById("totalItems").textContent = data.total_items || 0;
+        document.getElementById("borrowedCount").textContent = data.borrowed || 0;
+        document.getElementById("availableCount").textContent = data.available || 0;
+        document.getElementById("userCount").textContent = data.users || 0;
+        renderActivity(data.recent_activity || []);
+      } catch (err) {
+        console.error("Dashboard data error:", err);
+      }
+    }
+
+    function renderActivity(activity) {
+      const ul = document.getElementById("activityList");
+      ul.innerHTML = activity.length
+        ? activity.map(a => `<li>${a.message} (${new Date(a.date).toLocaleString()})</li>`).join("")
+        : "<li>No recent activity</li>";
+    }
+
+    async function logout() {
+      if (!confirm("Are you sure you want to log out?")) return;
+      await fetch("/api/logout", { method: "POST", credentials: "include" });
+      window.location.href = "/login.html";
+    }
+
+    // Highlight current page
+    const currentPage = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".sidebar a").forEach(link => {
+      const href = link.getAttribute("href");
+      if (href && href.endsWith(currentPage)) link.classList.add("active");
+    });
+
+    fetchUser();
+  </script>
+</body>
+</html>

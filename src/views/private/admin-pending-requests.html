@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Admin Pending Requests - JKUSDA</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    color: #333;
+    display: flex;
+    min-height: 100vh;
+  }
+  .sidebar {
+    width: 220px;
+    background: #1e293b;
+    color: #fff;
+    padding: 20px;
+    flex-shrink: 0;
+  }
+  .sidebar h2 { margin-bottom: 20px; text-align: center; }
+  .sidebar ul { list-style: none; }
+  .sidebar ul li { margin: 10px 0; }
+  .sidebar ul li a {
+    text-decoration: none;
+    color: #cbd5e1;
+    display: block;
+    padding: 8px;
+    border-radius: 5px;
+    transition: 0.2s;
+  }
+  .sidebar ul li a:hover {
+    background: #334155;
+    color: #fff;
+  }
+
+  .main { flex: 1; padding: 20px; overflow-x: auto; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+
+  /* ===== ACTION DROPDOWN ===== */
+  .action-container {
+    position: relative;
+    display: inline-block;
+  }
+  .action-btn {
+    background: #1e293b;
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .action-container:hover .action-menu {
+    display: block;
+  }
+  .action-menu {
+    position: absolute;
+    top: 100%;
+    left: -40px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    display: none;
+    min-width: 180px;
+    z-index: 10;
+  }
+  .action-menu button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .action-menu button:hover {
+    background: #f1f5f9;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  th, td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+    font-size: 0.95rem;
+  }
+  th { background: #1e293b; color: #fff; }
+  tr:hover td { background: #f9fafb; }
+
+  .status {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-transform: capitalize;
+  }
+  .pending { background: #fef9c3; color: #92400e; }
+  .approved { background: #d1fae5; color: #065f46; }
+
+  /* ===== Custom Modal ===== */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+  }
+  .modal {
+    background: #fff;
+    padding: 25px;
+    border-radius: 10px;
+    width: 340px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    text-align: center;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal h3 {
+    margin-bottom: 12px;
+    color: #1e293b;
+  }
+  .modal p {
+    font-size: 0.95rem;
+    color: #444;
+    margin-bottom: 20px;
+  }
+  .modal input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 1rem;
+    margin-bottom: 15px;
+  }
+  .modal button {
+    padding: 8px 14px;
+    margin: 0 5px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .modal .ok-btn {
+    background: #1e293b;
+    color: #fff;
+  }
+  .modal .cancel-btn {
+    background: #e5e7eb;
+    color: #333;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+
+  .expandable {
+  cursor: pointer;
+}
+.expandable:hover td {
+  background-color: #f1f5f9;
+}
+.expandable .arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.expanded .arrow {
+  transform: rotate(90deg);
+}
+
+
+
+
+</style>
+</head>
+
+<body>
+  <aside class="sidebar">
+    <h2>JKUSDA (Admin)</h2>
+    <ul>
+      <li><a href="/api/dashboard.html">Dashboard</a></li>
+      <li><a href="/api/admin-pending-requests.html" class="active">Pending Requests</a></li>
+      <li><a href="#" onclick="logout()">Logout</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <h1>All Pending / Approved Requests</h1>
+      <div class="action-container">
+        <button class="action-btn">Action ▾</button>
+        <div class="action-menu" id="actionMenu">
+          <button onclick="handleAction('approve')">Approve</button>
+          <button onclick="handleAction('markReturned')">Mark as Returned</button>
+          <button onclick="handleAction('reject')">Reject</button>
+        </div>
+      </div>
+    </div>
+
+    <table id="requestsTable">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Description</th>
+          <th>Quantity</th>
+          <th>Request Date</th>
+          <th>Status</th>
+          <th>Approval Code</th>
+          <th>Batch</th>
+        </tr>
+      </thead>
+      <tbody><tr><td colspan="7">Loading...</td></tr></tbody>
+    </table>
+  </main>
+
+  <!-- ✅ Custom Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modalBox">
+      <h3 id="modalTitle">Notice</h3>
+      <p id="modalMessage">Message</p>
+      <input id="modalInput" type="text" placeholder="" style="display:none;">
+      <div id="modalButtons"></div>
+    </div>
+  </div>
+
+<script>
+/* ======= Modal System ======= */
+function showModal(message, title = "Notice", type = "alert") {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("modalOverlay");
+    const titleEl = document.getElementById("modalTitle");
+    const msgEl = document.getElementById("modalMessage");
+    const btnBox = document.getElementById("modalButtons");
+    const inputEl = document.getElementById("modalInput");
+
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+    inputEl.style.display = type === "prompt" ? "block" : "none";
+    inputEl.value = "";
+    btnBox.innerHTML = "";
+
+    const okBtn = document.createElement("button");
+    okBtn.textContent = type === "confirm" ? "Yes" : "OK";
+    okBtn.className = "ok-btn";
+    okBtn.onclick = () => {
+      overlay.style.display = "none";
+      resolve(type === "prompt" ? inputEl.value.trim() : true);
+    };
+    btnBox.appendChild(okBtn);
+
+    if (type === "confirm" || type === "prompt") {
+      const cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.className = "cancel-btn";
+      cancelBtn.onclick = () => {
+        overlay.style.display = "none";
+        resolve(type === "prompt" ? null : false);
+      };
+      btnBox.appendChild(cancelBtn);
+    }
+
+    overlay.style.display = "flex";
+    if (type === "prompt") inputEl.focus();
+  });
+}
+
+/* ======= Fetch & Render ======= */
+async function fetchRequests() {
+  try {
+    const res = await fetch("/api/admin/request-status", { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to fetch request status");
+    const data = await res.json();
+    renderTable(data.requests || data);
+  } catch (err) {
+    console.error("Error loading request status:", err);
+    document.querySelector("#requestsTable tbody").innerHTML =
+      "<tr><td colspan='7'>Error loading requests</td></tr>";
+  }
+}
+
+function renderTable(requests) {
+  const tbody = document.querySelector("#requestsTable tbody");
+  tbody.innerHTML = "";
+  if (!requests.length) {
+    tbody.innerHTML = "<tr><td colspan='7'>No requests found</td></tr>";
+    return;
+  }
+
+  const grouped = {};
+  for (const r of requests) {
+    if (!grouped[r.batch_code]) grouped[r.batch_code] = [];
+    grouped[r.batch_code].push(r);
+  }
+
+  for (const [batchCode, items] of Object.entries(grouped)) {
+    const first = items[0];
+    const hasMultiple = items.length > 1;
+    const trBatch = document.createElement("tr");
+    trBatch.classList.add("batch-row");
+    if (hasMultiple) trBatch.classList.add("expandable");
+
+    const arrow = hasMultiple ? `<span class="arrow">▶</span>` : "";
+    trBatch.innerHTML = `
+      <td>${arrow} ${first.item_name}</td>
+      <td>${first.description || "—"}</td>
+      <td>${first.quantity}</td>
+      <td>${new Date(first.request_date).toLocaleString()}</td>
+      <td><span class="status ${first.status}">${first.status}</span></td>
+      <td>${first.approval_code || "—"}</td>
+      <td>${first.batch_code || "—"}</td>`;
+    tbody.appendChild(trBatch);
+
+    if (hasMultiple) {
+      items.slice(1).forEach(it => {
+        const subTr = document.createElement("tr");
+        subTr.classList.add("sub-item");
+        subTr.style.display = "none";
+        subTr.innerHTML = `
+          <td>↳ ${it.item_name}</td>
+          <td>${it.description || "—"}</td>
+          <td>${it.quantity}</td>
+          <td>${new Date(it.request_date).toLocaleString()}</td>
+          <td><span class="status ${it.status}">${it.status}</span></td>
+          <td>${it.approval_code || "—"}</td>
+          <td>${it.batch_code || "—"}</td>`;
+        tbody.appendChild(subTr);
+      });
+      trBatch.addEventListener("click", () => {
+        const isExpanded = trBatch.classList.toggle("expanded");
+        trBatch.querySelector(".arrow").textContent = isExpanded ? "▼" : "▶";
+        let next = trBatch.nextElementSibling;
+        while (next && next.classList.contains("sub-item")) {
+          next.style.display = isExpanded ? "table-row" : "none";
+          next = next.nextElementSibling;
+        }
+      });
+    }
+  }
+}
+
+/* ======= Handle Actions ======= */
+async function handleAction(action) {
+  const batchOrCode = await showModal("Enter Batch Number or Approval Code:", "Input Required", "prompt");
+  if (!batchOrCode) return showModal("Input required.", "Error");
+
+  let reason = "";
+  if (action === "reject") {
+    reason = await showModal("Enter reason for rejection:", "Rejection Reason", "prompt");
+    if (!reason) return showModal("Reason required.", "Error");
+  }
+
+  try {
+    let endpoint = "";
+    let body = { code: batchOrCode };
+    switch (action) {
+      case "approve": endpoint = "/api/admin/approve-request"; break;
+      case "markReturned": endpoint = "/api/admin/mark-returned"; break;
+      case "reject": endpoint = "/api/admin/reject-request"; body.reason = reason; break;
+    }
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+
+    const result = await res.json();
+    if (res.ok) {
+      await showModal(result.message || "Action completed successfully.", "Success");
+      fetchRequests();
+    } else {
+      await showModal(result.error || "Failed to process action.", "Error");
+    }
+  } catch (err) {
+    console.error(err);
+    showModal("Error performing action.", "Error");
+  }
+}
+
+/* ======= Logout ======= */
+async function logout() {
+  const confirmed = await showModal("Are you sure you want to log out?", "Confirm Logout", "confirm");
+  if (!confirmed) return;
+  await fetch("/api/logout", { method: "POST", credentials: "include" });
+  window.location.href = "/login.html";
+}
+
+fetchRequests();
+</script>
+</body>
+</html>

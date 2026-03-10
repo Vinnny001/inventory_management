@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Borrowed List - JKUSDA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #1e293b;
+      color: #fff;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+    .sidebar h2 {
+      margin-bottom: 20px;
+      font-size: 1.2rem;
+      text-align: center;
+    }
+    .sidebar ul { list-style: none; }
+    .sidebar ul li { margin: 10px 0; }
+    .sidebar ul li a {
+      text-decoration: none;
+      color: #cbd5e1;
+      display: block;
+      padding: 8px;
+      border-radius: 5px;
+      transition: 0.2s;
+    }
+    .sidebar ul li a:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    /* Main */
+    .main {
+      flex: 1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .header h1 { font-size: 1.5rem; }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      font-size: 0.95rem;
+      vertical-align: middle;
+    }
+    th {
+      background: #1e293b;
+      color: #fff;
+    }
+    tr:hover td {
+      background: #f9fafb;
+    }
+
+    /* Quantity controls */
+    .qty-control {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .qty-control button {
+      padding: 4px 8px;
+      border: none;
+      border-radius: 5px;
+      background: #e5e7eb;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .qty-control input {
+      width: 40px;
+      text-align: center;
+      padding: 4px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    /* Checkout button */
+    #checkoutBtn {
+      margin-top: 20px;
+      padding: 12px 20px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    #checkoutBtn:hover {
+      background: #1e40af;
+    }
+/* Modern return date picker */
+input[type="date"].return-date {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #1e293b;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input[type="date"].return-date:hover {
+  background: #eef2ff;
+  border-color: #6366f1;
+}
+
+input[type="date"].return-date:focus {
+  background: #fff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+}
+
+
+
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>JKUSDA</h2>
+    <ul>
+      <li><a href="/api/dashboard.html">Dashboard</a></li>
+      <li><a href="/api/borrow.html">Borrow Items</a></li>
+      <li><a href="/api/borrow-list_cart.html">Borrow List</a></li>
+      <li><a href="#" onclick="logout()">Logout</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <h1>Borrowed Items (Not Checked Out)</h1>
+    </div>
+
+    <table id="borrowTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll"></th>
+          <th>Item</th>
+          <th>Description</th>
+          <th>Quantity</th>
+          <th>Available</th>
+          <th>Borrow Days</th> <!-- New column for borrow period -->
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="5">Loading...</td></tr>
+      </tbody>
+    </table>
+
+    <button id="checkoutBtn">Checkout Selected</button>
+    <button id="removeBtn" style="
+  margin-top: 10px;
+  padding: 12px 20px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: 0.2s;">
+  Remove Selected
+</button>
+  </main>
+
+  <script>
+    async function fetchBorrowList() {
+      try {
+        const res = await fetch("/api/borrow-list_cart", { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch borrow list");
+
+        const data = await res.json();
+        renderTable(data);
+      } catch (err) {
+        console.error("Error fetching borrow list:", err);
+        document.querySelector("#borrowTable tbody").innerHTML =
+          "<tr><td colspan='5'>Error loading borrow list</td></tr>";
+      }
+    }
+
+    function renderTable(items) {
+      const tbody = document.querySelector("#borrowTable tbody");
+      tbody.innerHTML = "";
+
+      if (!items.length) {
+        tbody.innerHTML = "<tr><td colspan='5'>No borrowed items</td></tr>";
+        return;
+      }
+
+      items.forEach(item => {
+        const tr = document.createElement("tr");
+
+        // Checkbox
+        const tdCheck = document.createElement("td");
+        tdCheck.innerHTML = `
+  <input 
+    type="checkbox" 
+    class="row-check"
+    data-cart-id="${item.cart_id}"
+    data-item-id="${item.item_id}"
+  >
+`;
+
+
+
+        
+
+        // Item name
+        const tdName = document.createElement("td");
+        tdName.textContent = item.item_name;
+
+        // Description
+        const tdDesc = document.createElement("td");
+        tdDesc.textContent = item.description || "—";
+
+        // Quantity control
+        const tdQty = document.createElement("td");
+        tdQty.innerHTML = `
+          <div class="qty-control">
+            <button onclick="changeQty(this, -1)">-</button>
+<input type="number" value="${item.quantity}" min="1">
+            <button onclick="changeQty(this, 1)">+</button>
+          </div>
+        `;
+
+        // Availability
+        const tdAvail = document.createElement("td");
+        tdAvail.textContent = item.available ?? "N/A";
+
+
+
+
+        // Borrow days input (uses item.max_period)
+const tdBorrowDays = document.createElement("td");
+
+tdBorrowDays.innerHTML = `
+  <input
+    type="number"
+    class="borrow-days"
+    min="1"
+    max="${item.max_period}"
+    value="1"
+    title="Maximum ${item.max_period} days"
+    style="
+      width: 80px;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+    "
+  >
+`;
+
+        
+
+
+
+        tr.appendChild(tdCheck);
+        tr.appendChild(tdName);
+        tr.appendChild(tdDesc);
+        tr.appendChild(tdQty);
+        tr.appendChild(tdAvail);
+        tr.appendChild(tdBorrowDays);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function changeQty(btn, delta) {
+      const input = btn.parentNode.querySelector("input");
+      let value = parseInt(input.value) || 1;
+      value += delta;
+      if (value < 1) value = 1;
+      input.value = value;
+    }
+
+    // Select all logic
+    document.addEventListener("change", e => {
+      if (e.target.id === "selectAll") {
+        const checked = e.target.checked;
+        document.querySelectorAll(".row-check").forEach(cb => cb.checked = checked);
+      }
+    });
+
+    // Checkout button
+    document.getElementById("checkoutBtn").addEventListener("click", async () => {
+  const selected = [];
+  let hasValidationError = false;
+
+  document.querySelectorAll(".row-check:checked").forEach(cb => {
+    const row = cb.closest("tr");
+    const qty = row.querySelector(".qty-control input").value;
+    const borrowDays = row.querySelector(".borrow-days").value;
+
+    if (!borrowDays || borrowDays < 1) {
+      alert("Invalid borrow period! Borrow days must be at least 1.");
+      hasValidationError = true;
+      return; // exits this iteration only
+    }
+
+    selected.push({
+      cart_id: cb.dataset.cartId,
+      item_id: cb.dataset.itemId,
+      quantity: parseInt(qty),
+      borrow_days: parseInt(borrowDays)
+    });
+  });
+
+  // 🚨 STOP checkout if validation failed
+  if (hasValidationError) return;
+
+  if (!selected.length) {
+    alert("Please select at least one item to checkout.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ items: selected })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || "Checkout failed.");
+      return;
+    }
+
+    alert(data.message);
+    fetchBorrowList();
+
+  } catch (err) {
+    console.error("Checkout error:", err);
+    alert("Network error. Please try again.");
+  }
+});
+
+
+
+
+    // Remove selected items
+document.getElementById("removeBtn").addEventListener("click", async () => {
+  const selected = [];
+  document.querySelectorAll(".row-check:checked").forEach(cb => {
+selected.push(cb.dataset.cartId);
+  });
+
+  if (!selected.length) {
+    alert("Please select at least one item to remove.");
+    return;
+  }
+
+  if (!confirm("Remove selected items from your cart?")) return;
+
+  try {
+    const res = await fetch("/api/remove-from-cart", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ cart_ids: selected })
+    });
+
+    if (!res.ok) throw new Error("Failed to remove items");
+    alert("Selected items removed successfully.");
+    fetchBorrowList();
+  } catch (err) {
+    console.error("Error removing items:", err);
+    alert("Failed to remove items.");
+  }
+});
+
+
+
+    async function logout() {
+      if (!confirm("Are you sure you want to log out?")) return;
+      try {
+        await fetch("/api/logout", { method: "POST", credentials: "include" });
+        window.location.href = "/login.html";
+      } catch (err) {
+        console.error("Logout failed:", err);
+      }
+    }
+
+    fetchBorrowList();
+  </script>
+</body>
+</html>
